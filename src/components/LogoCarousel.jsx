@@ -23,7 +23,7 @@ export default function LogoCarousel() {
           {[...logos, ...logos].map((logo, i) => (
             <div key={i} className="logo-slide">
               <img 
-                src={`/logos/${logo}`} 
+                src={`${import.meta.env.BASE_URL}/logos/${logo}`} 
                 alt="Partner Logo"
                 className="logo-colored"
                 onError={(e) => e.target.style.display = 'none'}
