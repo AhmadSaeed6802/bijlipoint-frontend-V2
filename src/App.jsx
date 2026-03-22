@@ -22,6 +22,7 @@ import './AuthDashboard.css';
 import './Charging.css';
 import './Mobile.css';
 import './ResetPassword.css';
+import './NavbarInstall.css';
 
 // Home Page Component
 function HomePage() {

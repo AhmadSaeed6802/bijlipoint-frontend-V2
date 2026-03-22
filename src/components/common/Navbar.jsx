@@ -5,8 +5,13 @@ import { useAuth } from '../../context/AuthContext';
 export default function Navbar({ onLoginClick }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Check if running as standalone app
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                       window.navigator.standalone === true;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -14,8 +19,36 @@ export default function Navbar({ onLoginClick }) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    // Only capture install prompt if in browser
+    if (isStandalone) return;
+
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, [isStandalone]);
+
   const handleDashboard = () => {
     navigate('/dashboard');
+  };
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    
+    try {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        setInstallPrompt(null);
+      }
+    } catch (err) {
+      console.error('Install error:', err);
+    }
   };
 
   return (
@@ -42,6 +75,15 @@ export default function Navbar({ onLoginClick }) {
           <li><a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a></li>
           <li><a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a></li>
           
+          {/* ONLY SHOW IN BROWSER, NOT IN INSTALLED APP */}
+          {!isStandalone && installPrompt && (
+            <li>
+              <button onClick={handleInstall} className="btn-install-nav">
+                ⚡ Install App
+              </button>
+            </li>
+          )}
+          
           {user ? (
             <>
               <li>
@@ -58,7 +100,7 @@ export default function Navbar({ onLoginClick }) {
           ) : (
             <li>
               <button onClick={onLoginClick} className="btn-login">
-                Dashboard{/* Login / Sign Up */}
+                Dashboard
               </button>
             </li>
           )}
