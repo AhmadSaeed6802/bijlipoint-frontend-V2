@@ -1,0 +1,289 @@
+/* PWA Install Banner */
+.pwa-install-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  padding: 1rem;
+  z-index: 1000;
+  animation: slideUp 0.4s;
+}
+
+.pwa-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pwa-icon {
+  font-size: 2.5rem;
+}
+
+.pwa-text h4 {
+  color: white;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.pwa-text p {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+}
+
+.pwa-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-install {
+  background: white;
+  color: #059669;
+  padding: 0.7rem 1.5rem;
+  border-radius: 25px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-dismiss {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.7rem 1rem;
+  border-radius: 25px;
+  border: none;
+  cursor: pointer;
+}
+
+/* OTP Verification */
+.otp-verification {
+  padding: 1rem 0;
+}
+
+.otp-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.otp-header h2 {
+  font-size: 1.8rem;
+  color: var(--dark);
+  margin-bottom: 1rem;
+}
+
+.otp-header p {
+  color: var(--gray);
+  margin: 0.5rem 0;
+}
+
+.phone-number {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 1.2rem;
+}
+
+.test-hint {
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 0.5rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.otp-inputs {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+.otp-input {
+  width: 50px;
+  height: 60px;
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 700;
+  border: 2px solid #E2E8F0;
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.otp-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  transform: scale(1.05);
+}
+
+.otp-error {
+  background: #FEE2E2;
+  color: #DC2626;
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.otp-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: var(--gray);
+}
+
+/* Forgot Password */
+.forgot-password-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.forgot-content {
+  background: white;
+  width: 95%;
+  max-width: 450px;
+  border-radius: 20px;
+  padding: 2.5rem;
+  position: relative;
+}
+
+.forgot-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.forgot-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.forgot-header h2 {
+  font-size: 2rem;
+  color: var(--dark);
+  margin-bottom: 0.5rem;
+}
+
+.forgot-header p {
+  color: var(--gray);
+}
+
+.forgot-success {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.email-sent {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 1.1rem;
+  margin: 1rem 0;
+}
+
+.help-text {
+  color: var(--gray);
+  font-size: 0.9rem;
+  margin: 1.5rem 0;
+}
+
+.forgot-link {
+  text-align: right;
+  margin-bottom: 1rem;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .pwa-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .pwa-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .btn-install {
+    flex: 1;
+  }
+  
+  .otp-inputs {
+    gap: 0.5rem;
+  }
+  
+  .otp-input {
+    width: 45px;
+    height: 55px;
+    font-size: 1.8rem;
+  }
+  
+  .forgot-content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .otp-input {
+    width: 40px;
+    height: 50px;
+    font-size: 1.5rem;
+  }
+}
+
+/* Form helpers */
+.form-group small {
+  display: block;
+  color: var(--gray);
+  font-size: 0.85rem;
+  margin-top: 0.3rem;
+}
+
+/* Success states */
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  margin: 0 auto 1.5rem;
+  animation: scaleIn 0.5s;
+}
+
+@keyframes scaleIn {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

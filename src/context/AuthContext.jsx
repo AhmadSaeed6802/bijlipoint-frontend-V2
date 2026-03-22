@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('bijli_user');
+    const stored = sessionStorage.getItem('bijli_user');
     if (stored) {
       setUser(JSON.parse(stored));
     }
@@ -29,15 +29,19 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ email, password })
       });
 
-      if (!response.ok) throw new Error('Login failed');
-
       const data = await response.json();
+
+      if (!response.ok) {
+        // ✅ FIXED - Return actual error from backend
+        return { success: false, error: data.error || 'Login failed' };
+      }
+
       setUser(data.user);
-      localStorage.setItem('bijli_user', JSON.stringify(data.user));
-      localStorage.setItem('bijli_token', data.token);
+      sessionStorage.setItem('bijli_user', JSON.stringify(data.user));
+      sessionStorage.setItem('bijli_token', data.token);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: 'Network error. Please try again.' };
     }
   };
 
@@ -49,22 +53,26 @@ export function AuthProvider({ children }) {
         body: JSON.stringify(userData)
       });
 
-      if (!response.ok) throw new Error('Registration failed');
-
       const data = await response.json();
+
+      if (!response.ok) {
+        // ✅ FIXED - Return actual error from backend
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+
       setUser(data.user);
-      localStorage.setItem('bijli_user', JSON.stringify(data.user));
-      localStorage.setItem('bijli_token', data.token);
+      sessionStorage.setItem('bijli_user', JSON.stringify(data.user));
+      sessionStorage.setItem('bijli_token', data.token);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: 'Network error. Please try again.' };
     }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('bijli_user');
-    localStorage.removeItem('bijli_token');
+    sessionStorage.removeItem('bijli_user');
+    sessionStorage.removeItem('bijli_token');
   };
 
   const value = {

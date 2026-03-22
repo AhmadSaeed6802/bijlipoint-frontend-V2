@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/common/Navbar';
 import Hero from './components/sections/Hero';
@@ -14,18 +15,18 @@ import MapButton from './components/map/MapButton';
 import StationMap from './components/map/StationMap';
 import AuthModal from './components/auth/AuthModal';
 import Dashboard from './components/dashboard/Dashboard';
+import ResetPassword from './components/auth/ResetPassword';
+import PWAInstall from './components/pwa/PWAInstall';
 import './App.css';
 import './AuthDashboard.css';
+import './Charging.css';
+import './Mobile.css';
+import './ResetPassword.css';
 
-function AppContent() {
+// Home Page Component
+function HomePage() {
   const [showMap, setShowMap] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const { user } = useAuth();
-
-  // If user is logged in and on dashboard route, show dashboard
-  if (user && window.location.pathname === '/dashboard') {
-    return <Dashboard />;
-  }
 
   return (
     <div className="app">
@@ -38,7 +39,8 @@ function AppContent() {
       <Pricing />
       <Contact />
       <Footer />
-
+      
+      <PWAInstall />
       <WhatsAppFloat phoneNumber="923227190119" />
       <MapButton onClick={() => setShowMap(true)} />
 
@@ -48,10 +50,29 @@ function AppContent() {
   );
 }
 
+// Dashboard Page Component
+function DashboardPage() {
+  const { user } = useAuth();
+  
+  // Redirect if not logged in
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <Dashboard />;
+}
+
+// Main App Component
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+        </Routes>
+      </BrowserRouter>
     </AuthProvider>
   );
 }

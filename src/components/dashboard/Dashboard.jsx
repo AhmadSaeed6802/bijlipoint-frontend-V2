@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SuperAdminDashboard from './SuperAdminDashboard';
 import AdminDashboard from './AdminDashboard';
@@ -7,9 +8,10 @@ import RiderDashboard from './RiderDashboard';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   if (!user) {
-    window.location.href = '/';
+    navigate('/');
     return null;
   }
 
@@ -52,7 +54,7 @@ export default function Dashboard() {
           Logout →
         </button>
         <button 
-          onClick={() => window.location.href = '/'} 
+          onClick={() => navigate('/')} 
           className="btn-home"
         >
           🏠 Back to Home
