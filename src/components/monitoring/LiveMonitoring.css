@@ -1,0 +1,107 @@
+.live-monitoring {
+  padding: 20px;
+}
+
+.live-monitoring h2 {
+  color: #0F172A;
+  margin-bottom: 30px;
+}
+
+.ports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.port-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 2px solid #E5E7EB;
+}
+
+.port-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #F3F4F6;
+}
+
+.port-header h3 {
+  color: #0F172A;
+  margin: 0;
+}
+
+.port-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-on, .btn-off {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-on {
+  background: #10B981;
+  color: white;
+}
+
+.btn-on:hover {
+  background: #059669;
+}
+
+.btn-off {
+  background: #EF4444;
+  color: white;
+}
+
+.btn-off:hover {
+  background: #DC2626;
+}
+
+.meter-data {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.meter-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  background: #F9FAFB;
+  border-radius: 6px;
+}
+
+.meter-item .label {
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.meter-item .value {
+  color: #0F172A;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.last-update {
+  text-align: center;
+  color: #9CA3AF;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .ports-grid {
+    grid-template-columns: 1fr;
+  }
+}
