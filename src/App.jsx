@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/common/Navbar';
 import Hero from './components/sections/Hero';
@@ -28,6 +28,13 @@ import './NavbarInstall.css';
 function HomePage() {
   const [showMap, setShowMap] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Already logged in — go straight to dashboard
+  useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true });
+  }, [user]);
 
   return (
     <div className="app">

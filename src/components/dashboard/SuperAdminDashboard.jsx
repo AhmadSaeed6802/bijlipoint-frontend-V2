@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from '../../apiConfig';
 
 export default function SuperAdminDashboard() {
-  const [stats, setStats] = useState({
-    totalStations: 0,
-    totalRiders: 0,
-    totalAdmins: 0,
-    totalRevenue: 0
-  });
+  const [stats, setStats] = useState({ totalApproved: 0, totalPending: 0, totalRiders: 0, totalOwners: 0 });
+
+  useEffect(() => {
+    fetch(`${API_URL}/stations/stats`)
+      .then(r => r.json())
+      .then(d => setStats(d))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="dashboard-content">
@@ -19,27 +22,25 @@ export default function SuperAdminDashboard() {
         <div className="stat-card green">
           <div className="stat-icon">🔌</div>
           <div className="stat-info">
-            <h3>Total Stations</h3>
-            <p className="stat-number">150</p>
-            <span className="stat-change">+12 this month</span>
+            <h3>Approved Stations</h3>
+            <p className="stat-number">{stats.totalApproved}</p>
+            <span className="stat-change">{stats.totalPending} pending</span>
           </div>
         </div>
 
         <div className="stat-card blue">
           <div className="stat-icon">🏍️</div>
           <div className="stat-info">
-            <h3>Active Riders</h3>
-            <p className="stat-number">2,450</p>
-            <span className="stat-change">+320 new</span>
+            <h3>Total Riders</h3>
+            <p className="stat-number">{stats.totalRiders}</p>
           </div>
         </div>
 
         <div className="stat-card orange">
           <div className="stat-icon">👥</div>
           <div className="stat-info">
-            <h3>Admins & Owners</h3>
-            <p className="stat-number">45</p>
-            <span className="stat-change">5 pending</span>
+            <h3>Station Owners</h3>
+            <p className="stat-number">{stats.totalOwners}</p>
           </div>
         </div>
 
