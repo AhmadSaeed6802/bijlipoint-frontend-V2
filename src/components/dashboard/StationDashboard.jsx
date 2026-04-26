@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import API_URL from '../../apiConfig';
 import LiveMonitoring from '../monitoring/LiveMonitoring';
+import StationSessions from './StationSessions';
+import StationPortHealth from './StationPortHealth';
 import '../monitoring/LiveMonitoring.css';
 
 export default function StationDashboard() {
@@ -65,39 +67,7 @@ export default function StationDashboard() {
   const pendingStations = stations.filter(s => s.approvalStatus === 'Pending');
 
   if (activeStation) {
-    return (
-      <div className="dashboard-content">
-        <div className="dashboard-header">
-          <div>
-            <h1>{activeStation.name}</h1>
-            {activeStation.stationID && (
-              <p style={{ color: '#10B981', fontFamily: 'monospace', fontSize: '14px' }}>
-                Station ID: <strong>{activeStation.stationID}</strong>
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => setActiveStation(null)}
-            style={{
-              padding: '10px 20px',
-              background: '#ffffff',
-              color: '#111827',
-              border: '2px solid #d1d5db',
-              borderRadius: '8px',
-              fontWeight: 600,
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            ← Back to Stations
-          </button>
-        </div>
-        <LiveMonitoring stationId={activeStation.id} stationID={activeStation.stationID} />
-      </div>
-    );
+    return <StationView station={activeStation} onBack={() => setActiveStation(null)} />;
   }
 
   return (
@@ -228,6 +198,58 @@ export default function StationDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StationView({ station, onBack }) {
+  const [tab, setTab] = useState('live');
+
+  return (
+    <div className="dashboard-content">
+      <div className="dashboard-header">
+        <div>
+          <h1>{station.name}</h1>
+          {station.stationID && (
+            <p style={{ color: '#10B981', fontFamily: 'monospace', fontSize: '14px' }}>
+              Station ID: <strong>{station.stationID}</strong>
+            </p>
+          )}
+        </div>
+        <button
+          onClick={onBack}
+          style={{
+            padding: '10px 20px', background: '#ffffff', color: '#111827',
+            border: '2px solid #d1d5db', borderRadius: '8px', fontWeight: 600,
+            fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+          }}
+        >
+          ← Back to Stations
+        </button>
+      </div>
+
+      {/* Tab switcher */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f3f4f6', borderRadius: 10, padding: 4 }}>
+        {[['live', '📡 Live Monitoring'], ['sessions', '💰 Sessions & Revenue'], ['health', '🔍 Port Health']].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontWeight: 600, fontSize: 13,
+              background: tab === key ? '#fff' : 'transparent',
+              color:      tab === key ? '#111' : '#6b7280',
+              boxShadow:  tab === key ? '0 1px 4px #0001' : 'none',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'live'     && <LiveMonitoring stationId={station.id} stationID={station.stationID} />}
+      {tab === 'sessions' && <StationSessions stationId={station.id} />}
+      {tab === 'health'   && <StationPortHealth stationId={station.id} />}
     </div>
   );
 }
