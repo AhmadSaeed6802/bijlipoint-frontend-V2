@@ -41,24 +41,44 @@ export default function RiderDashboard() {
   const [receipt, setReceipt]       = useState(null);
   const [history, setHistory]       = useState([]);
   const [stats, setStats]           = useState({ sessions: 0, spent: 0, units: 0 });
-  const [starting, setStarting]     = useState(false);
-  const [stopping, setStopping]     = useState(false);
-  const pollRef                     = useRef(null);
-  const prevSessionRef              = useRef(null); // tracks last known active session
+  const [starting, setStarting]         = useState(false);
+  const [stopping, setStopping]         = useState(false);
+  const [stopPhase, setStopPhase]       = useState(null);  // null | 'waiting' | 'retrying' | 'failed'
+  const [connectPhase, setConnectPhase] = useState(null);  // null | 'connecting' | 'retrying' | 'failed'
+  const pollRef                         = useRef(null);
+  const prevSessionRef                  = useRef(null);
+  const connectPollRef                  = useRef(null);
+  const connectingStationRef            = useRef(null);
+  const connectingPortRef               = useRef(null);
+  const syncRef                         = useRef(null); // always points to latest fetchActiveSession
 
   useEffect(() => {
     fetchStations();
-    fetchActiveSession();
+    syncRef.current?.();
     fetchHistory();
   }, []);
 
-  // Poll active session every 2 s when on session tab
+  useEffect(() => () => clearInterval(connectPollRef.current), []);
+
+  // Poll active session every 2 s whenever the session tab is open
   useEffect(() => {
-    if (tab === 'session' && activeSession) {
-      pollRef.current = setInterval(fetchActiveSession, 2000);
-    }
+    if (tab !== 'session') return;
+    syncRef.current?.();
+    pollRef.current = setInterval(() => syncRef.current?.(), 2000);
     return () => clearInterval(pollRef.current);
-  }, [tab, activeSession?.sessionId]);
+  }, [tab]);
+
+  // Force a refresh on window focus or page becoming visible
+  useEffect(() => {
+    const onFocus = () => syncRef.current?.();
+    const onVisibility = () => { if (document.visibilityState === 'visible') syncRef.current?.(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // Poll port readings for expanded station
   useEffect(() => {
@@ -88,33 +108,148 @@ export default function RiderDashboard() {
 
   const fetchActiveSession = async () => {
     try {
-      const res  = await fetch(`${API_URL}/sessions/active/${user.id}`);
+      const res  = await fetch(`${API_URL}/sessions/active/${user.id}`, { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       const wasActive = prevSessionRef.current;
       prevSessionRef.current = data;
       setActive(data);
-      if (data) setTab('session');
-      // If session just ended (was active, now null) → refresh history automatically
-      if (wasActive && !data) fetchHistory();
+      if (data) {
+        setTab('session');
+        setConnectPhase(null); // session confirmed — clear any connecting/failed state
+      }
+      if (!data) {
+        setStopPhase(null);
+        setConnectPhase(prev => (prev === 'failed' ? null : prev)); // clear failed, keep connecting
+      }
+      if (wasActive && !data) {
+        // Fire-and-forget: don't await — lets setActive(null)/setStopPhase(null) commit
+        // immediately rather than waiting on the network before React flushes the batch.
+        fetchHistory().then(done => {
+          const last = done?.[0];
+          if (last) setReceipt({
+            stationName:   last.stationName,
+            unitsConsumed: last.unitsConsumed,
+            totalCost:     last.totalCost,
+            duration:      last.durationMin,
+            ratePerKwh:    last.unitsConsumed > 0
+                             ? Number((last.totalCost / last.unitsConsumed).toFixed(2))
+                             : 0,
+          });
+        });
+      }
     } catch {}
   };
+  syncRef.current = fetchActiveSession; // kept fresh every render — no stale-closure issues
 
   const fetchHistory = async () => {
     try {
       const res  = await fetch(`${API_URL}/sessions/history/${user.id}`);
       const data = await res.json();
-      setHistory(Array.isArray(data) ? data : []);
-      const done = (Array.isArray(data) ? data : []);
+      const done = Array.isArray(data) ? data : [];
+      setHistory(done);
       setStats({
         sessions: done.length,
         spent:    done.reduce((s, r) => s + Number(r.totalCost), 0),
         units:    done.reduce((s, r) => s + Number(r.unitsConsumed), 0),
       });
-    } catch {}
+      return done;
+    } catch { return []; }
   };
 
+  // Connect retry timer — runs fresh each time connectPhase changes; cleanup auto-cancels timer
+  useEffect(() => {
+    if (connectPhase !== 'connecting' && connectPhase !== 'retrying') return;
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API_URL}/sessions/active/${user.id}`);
+        const session = r.ok ? await r.json() : null;
+        if (session) {
+          clearInterval(connectPollRef.current);
+          setConnectPhase(null);
+          prevSessionRef.current = session;
+          setActive(session);
+          return;
+        }
+
+      } catch {}
+      if (connectPhase === 'connecting') {
+        try {
+          await fetch(`${API_URL}/sessions/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              riderId:    user.id,
+              stationId:  connectingStationRef.current,
+              portNumber: connectingPortRef.current,
+            }),
+          });
+        } catch {}
+        setConnectPhase('retrying');
+      } else {
+        clearInterval(connectPollRef.current);
+        setConnectPhase('failed');
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [connectPhase]);
+
+  // Stop phase: 1-second watcher detects idle immediately; 10-second timer sends retry command
+  useEffect(() => {
+    if (!stopPhase) return;
+
+    // Watch every 1 s — session disappears the instant charger goes idle.
+    // Uses only stable setters + refs: no stale-closure risk.
+    const watchId = setInterval(async () => {
+      try {
+        const r = await fetch(`${API_URL}/sessions/active/${user.id}`, { cache: 'no-store' });
+        const session = r.ok ? await r.json() : null;
+        if (!session) {
+          clearInterval(watchId);
+          const was = prevSessionRef.current;
+          prevSessionRef.current = null;
+          setActive(null);
+          setStopPhase(null);
+          setConnectPhase(p => p === 'failed' ? null : p);
+          if (was) {
+            // Fire-and-forget — same reason as fetchActiveSession: don't block state commit
+            fetch(`${API_URL}/sessions/history/${user.id}`)
+              .then(hr => hr.ok ? hr.json() : [])
+              .then(list => {
+                const done = Array.isArray(list) ? list : [];
+                setHistory(done);
+                setStats({ sessions: done.length, spent: done.reduce((a, x) => a + Number(x.totalCost), 0), units: done.reduce((a, x) => a + Number(x.unitsConsumed), 0) });
+                const last = done[0];
+                if (last) setReceipt({ stationName: last.stationName, unitsConsumed: last.unitsConsumed, totalCost: last.totalCost, duration: last.durationMin, ratePerKwh: last.unitsConsumed > 0 ? +(last.totalCost / last.unitsConsumed).toFixed(2) : 0 });
+              })
+              .catch(() => {});
+          }
+        }
+      } catch {}
+    }, 1000);
+
+    // Only resend stop command for 'waiting' and 'retrying'
+    if (stopPhase === 'failed') return () => clearInterval(watchId);
+
+    const retryTimer = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API_URL}/sessions/active/${user.id}`);
+        const session = r.ok ? await r.json() : null;
+        if (!session) return; // already ended — watcher handled it
+        if (stopPhase === 'waiting') {
+          try { await fetch(`${API_URL}/sessions/stop/${session.sessionId}`, { method: 'POST' }); } catch {}
+          setStopPhase('retrying');
+        } else {
+          setStopPhase('failed');
+        }
+      } catch {}
+    }, 10000);
+
+    return () => { clearInterval(watchId); clearTimeout(retryTimer); };
+  }, [stopPhase]);
+
   const startCharging = async (stationId, portNumber) => {
+    if (connectPhase === 'connecting' || connectPhase === 'retrying') return;
     setStarting(true);
     try {
       const res  = await fetch(`${API_URL}/sessions/start`, {
@@ -124,7 +259,6 @@ export default function RiderDashboard() {
       });
       const data = await res.json();
       if (!res.ok) {
-        // If there's already an active session, fetch and show it instead of just alerting
         if (data.error?.toLowerCase().includes('already have an active')) {
           await fetchActiveSession();
         } else {
@@ -132,24 +266,44 @@ export default function RiderDashboard() {
         }
         return;
       }
-      await fetchActiveSession();
+      // ON command queued — 1s poll watches for session; useEffect timer handles retry
+      connectingStationRef.current = stationId;
+      connectingPortRef.current    = portNumber;
+      setConnectPhase('connecting');
       setTab('session');
+      clearInterval(connectPollRef.current);
+      connectPollRef.current = setInterval(async () => {
+        try {
+          const r = await fetch(`${API_URL}/sessions/active/${user.id}`, { cache: 'no-store' });
+          if (!r.ok) return;
+          const session = await r.json();
+          if (session) {
+            clearInterval(connectPollRef.current);
+            setConnectPhase(null);
+            prevSessionRef.current = session;
+            setActive(session);
+          }
+        } catch {}
+      }, 1000);
     } catch { alert('Failed to start charging. Try again.'); }
     finally  { setStarting(false); }
   };
 
   const stopCharging = async () => {
-    if (!activeSession) return;
+    if (!activeSession || stopPhase === 'waiting' || stopPhase === 'retrying') return;
     setStopping(true);
     try {
-      const res  = await fetch(`${API_URL}/sessions/stop/${activeSession.sessionId}`, {
-        method: 'POST',
-      });
+      const res  = await fetch(`${API_URL}/sessions/stop/${activeSession.sessionId}`, { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) { alert(data.error); return; }
-      setActive(null);
-      setReceipt(data);
-      await fetchHistory();
+      if (!res.ok) {
+        if (data.error?.toLowerCase().includes('not active')) {
+          await fetchActiveSession();
+        } else {
+          alert(data.error);
+        }
+        return;
+      }
+      setStopPhase('waiting');
     } catch { alert('Failed to stop charging. Try again.'); }
     finally  { setStopping(false); }
   };
@@ -277,7 +431,7 @@ export default function RiderDashboard() {
                       const r    = (portsMap[st.id] || {})[pn];
                       const ps   = portState(r);
                       const cfg  = PORT_CFG[ps];
-                      const canStart = ps === 'idle' && !activeSession;
+                      const canStart = ps === 'idle' && !activeSession && connectPhase === null;
                       return (
                         <div key={pn} style={{ background: cfg.bg, borderRadius: 10, padding: '12px 10px', textAlign: 'center', border: `1px solid ${cfg.color}33` }}>
                           <div style={{ fontWeight: 700, fontSize: 18, color: cfg.color }}>P{String(pn).padStart(2, '0')}</div>
@@ -330,7 +484,34 @@ export default function RiderDashboard() {
       {/* ── ACTIVE SESSION TAB ── */}
       {tab === 'session' && (
         <div>
-          {!activeSession ? (
+          {connectPhase === 'failed' ? (
+            <div className="dashboard-card" style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 40 }}>❌</div>
+              <h3 style={{ margin: '12px 0 4px', color: '#EF4444' }}>Could Not Start Session</h3>
+              <p style={{ color: '#6b7280', margin: '0 0 8px' }}>The port did not respond to 2 start attempts.</p>
+              <p style={{ color: '#9ca3af', fontSize: 12, marginBottom: 20 }}>Port may be offline or not ready. Try a different port.</p>
+              <button
+                onClick={() => { setConnectPhase(null); setTab('stations'); }}
+                className="btn btn-primary"
+                style={{ marginTop: 4 }}
+              >
+                ← Back to Find Station
+              </button>
+            </div>
+          ) : connectPhase ? (
+            <div className="dashboard-card" style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 40, animation: 'pulse 1s infinite' }}>🔄</div>
+              <h3 style={{ margin: '12px 0 4px' }}>
+                {connectPhase === 'retrying' ? '2nd Attempt — Connecting...' : 'Connecting to Charger...'}
+              </h3>
+              <p style={{ color: '#6b7280', margin: 0 }}>
+                {connectPhase === 'retrying' ? 'Sending 2nd start signal to hardware' : 'Waiting for hardware signal (attempt 1/2)'}
+              </p>
+              <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>
+                {connectPhase === 'retrying' ? 'If no response, session start will be cancelled.' : 'If no response in 10 s, a 2nd attempt will be sent automatically.'}
+              </p>
+            </div>
+          ) : !activeSession ? (
             <div className="dashboard-card" style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
               <div style={{ fontSize: 40 }}>🔌</div>
               <p>No active session. Go to <strong>Find Station</strong> to start charging.</p>
@@ -347,7 +528,7 @@ export default function RiderDashboard() {
                     <span style={{ fontSize: 18 }}>⚠️</span>
                     <div>
                       <div style={{ fontWeight: 700, color: '#EF4444', fontSize: 13 }}>Station signal lost</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Session will auto-end if signal doesn't return within 5 minutes.</div>
+                      <div style={{ fontSize: 11, color: '#6b7280' }}>Session will auto-end if signal doesn't return within 2 minutes.</div>
                     </div>
                   </div>
                 ) : null;
@@ -379,13 +560,36 @@ export default function RiderDashboard() {
                 Rate: Rs {activeSession.ratePerKwh}/kWh · Started: {fmt(activeSession.startTime)}
               </div>
 
-              <button
-                onClick={stopCharging}
-                disabled={stopping}
-                style={{ width: '100%', padding: '12px 0', background: '#EF4444', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}
-              >
-                {stopping ? 'Stopping...' : '⏹ Stop Charging'}
-              </button>
+              {(() => {
+                const busy   = stopping || stopPhase === 'waiting' || stopPhase === 'retrying';
+                const btnBg  = stopPhase === 'failed'   ? '#F97316'
+                             : stopPhase === 'retrying' ? '#F59E0B'
+                             : stopPhase === 'waiting'  ? '#6b7280'
+                             : '#EF4444';
+                const label  = stopping              ? 'Sending stop...'
+                             : stopPhase === 'waiting'  ? '⏳ Stop sent — waiting for charger... (1/2)'
+                             : stopPhase === 'retrying' ? '⏳ 2nd attempt — waiting for charger...'
+                             : stopPhase === 'failed'   ? '⚠️ Not responding. Retry stop?'
+                             : '⏹ Stop Charging';
+                const hint   = stopPhase === 'waiting'  ? 'If charger does not idle in 10 s, a 2nd stop will be sent automatically.'
+                             : stopPhase === 'retrying' ? '2nd stop command sent. Session ends when charger goes idle.'
+                             : stopPhase === 'failed'   ? 'Charger did not respond to 2 stop attempts. Click again to retry, or it will auto-end after 2 min timeout.'
+                             : null;
+                return (
+                  <>
+                    <button
+                      onClick={stopCharging}
+                      disabled={busy}
+                      style={{ width: '100%', padding: '12px 0', background: btnBg, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: busy ? 'default' : 'pointer' }}
+                    >
+                      {label}
+                    </button>
+                    {hint && (
+                      <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 8 }}>{hint}</p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -409,7 +613,7 @@ export default function RiderDashboard() {
                     <div style={{ fontSize: 11, color: '#9ca3af' }}>{fmt(s.startTime)}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 700, color: '#10B981', fontSize: 16 }}>Rs {Number(s.totalCost).toFixed(0)}</div>
+                    <div style={{ fontWeight: 700, color: '#10B981', fontSize: 16 }}>Rs {Number(s.totalCost).toFixed(2)}</div>
                     <span style={{
                       fontSize: 10, padding: '2px 8px', borderRadius: 10,
                       background: s.status === 'Timeout' ? '#FEF2F2' : s.status === 'AutoCompleted' ? '#EFF6FF' : s.status === 'ForceStopped' ? '#F5F3FF' : '#ECFDF5',
